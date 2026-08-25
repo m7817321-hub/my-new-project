@@ -1,0 +1,26 @@
+{
+  "name": "woojung-seller",
+  "version": "1.0.0",
+  "description": "WOOJUNG SELLER - 국내 판매 자동화 및 상품화 파이프라인 MVP",
+  "main": "server/index.js",
+  "scripts": {
+    "start:server": "node server/index.js",
+    "start:client": "npm --prefix client run dev",
+    "dev": "concurrently -n \"SERVER,CLIENT\" -c \"blue,green\" \"npm run start:server\" \"npm run start:client\"",
+    "build": "npm --prefix client run build",
+    "test:identity": "node server/test_identity_dedup.js",
+    "test:market-model": "node server/test_market_research_model.js",
+    "test:workflow": "node server/test_workflow_lineage.js",
+    "start": "node server/index.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.8.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "uuid": "^11.1.0"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}
