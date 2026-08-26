@@ -1,4 +1,5 @@
 const https = require('https');
+const { recordCollectorStatus } = require('./integrationHealth');
 
 /**
  * NAVER API HUB 쇼핑인사이트 키워드 트렌드 수집기 (공식 신규 규격)
@@ -15,6 +16,7 @@ function fetchNaverDatalabShopping(keyword, categoryCode = '50000000') {
   const clientSecret = process.env.NAVER_CLIENT_SECRET;
 
   if (!clientId || !clientSecret) {
+    recordCollectorStatus('naver_datalab', 'UNKNOWN');
     return Promise.resolve({
       status: 'UNKNOWN',
       source: 'NAVER API HUB (https://naverapihub.apigw.ntruss.com/shopping/v1/category/keywords)',
@@ -74,6 +76,7 @@ function fetchNaverDatalabShopping(keyword, categoryCode = '50000000') {
               else if (avg2 < avg1 * 0.85) trendStatus = 'DECLINING';
             }
 
+            recordCollectorStatus('naver_datalab', 'LIVE_COLLECTED');
             resolve({
               status: 'LIVE_COLLECTED',
               source: `https://naverapihub.apigw.ntruss.com${path}`,
@@ -88,8 +91,10 @@ function fetchNaverDatalabShopping(keyword, categoryCode = '50000000') {
               }))
             });
           } else {
+            const errStatus = 'API_ERROR_' + res.statusCode;
+            recordCollectorStatus('naver_datalab', errStatus);
             resolve({
-              status: 'API_ERROR_' + res.statusCode,
+              status: errStatus,
               source: `https://naverapihub.apigw.ntruss.com${path}`,
               statusCode: res.statusCode,
               error: json.error?.message || json.errorMessage || json.message || data,
@@ -99,6 +104,7 @@ function fetchNaverDatalabShopping(keyword, categoryCode = '50000000') {
             });
           }
         } catch (e) {
+          recordCollectorStatus('naver_datalab', 'PARSE_ERROR');
           resolve({
             status: 'PARSE_ERROR',
             source: `https://naverapihub.apigw.ntruss.com${path}`,
@@ -113,6 +119,7 @@ function fetchNaverDatalabShopping(keyword, categoryCode = '50000000') {
     });
 
     req.on('error', (err) => {
+      recordCollectorStatus('naver_datalab', 'NETWORK_ERROR');
       resolve({
         status: 'NETWORK_ERROR',
         source: `https://naverapihub.apigw.ntruss.com${path}`,

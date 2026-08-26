@@ -1,4 +1,5 @@
 const https = require('https');
+const { recordCollectorStatus } = require('./integrationHealth');
 
 /**
  * 네이버 쇼핑 검색 오픈 API 수집기 (Naver Developers Search API)
@@ -17,6 +18,7 @@ function fetchNaverShoppingOpenApi(keyword) {
   const clientSecret = process.env.NAVER_CLIENT_SECRET;
 
   if (!clientId || !clientSecret) {
+    recordCollectorStatus('naver_shopping', 'UNKNOWN');
     return Promise.resolve({
       status: 'UNKNOWN',
       source: 'Naver Shopping Open API (https://openapi.naver.com/v1/search/shop.json)',
@@ -60,6 +62,7 @@ function fetchNaverShoppingOpenApi(keyword) {
               productUrl: item.link || ''
             }));
 
+            recordCollectorStatus('naver_shopping', 'LIVE_COLLECTED');
             resolve({
               status: 'LIVE_COLLECTED',
               source: `https://openapi.naver.com${path}`,
@@ -68,8 +71,10 @@ function fetchNaverShoppingOpenApi(keyword) {
               topProducts: topProducts
             });
           } else {
+            const errStatus = `API_ERROR_${res.statusCode}`;
+            recordCollectorStatus('naver_shopping', errStatus);
             resolve({
-              status: `API_ERROR_${res.statusCode}`,
+              status: errStatus,
               source: `https://openapi.naver.com${path}`,
               statusCode: res.statusCode,
               error: json.errorMessage || json.message || data,
@@ -78,6 +83,7 @@ function fetchNaverShoppingOpenApi(keyword) {
             });
           }
         } catch (e) {
+          recordCollectorStatus('naver_shopping', 'PARSE_ERROR');
           resolve({
             status: 'PARSE_ERROR',
             source: `https://openapi.naver.com${path}`,
@@ -91,6 +97,7 @@ function fetchNaverShoppingOpenApi(keyword) {
     });
 
     req.on('error', (err) => {
+      recordCollectorStatus('naver_shopping', 'NETWORK_ERROR');
       resolve({
         status: 'NETWORK_ERROR',
         source: `https://openapi.naver.com${path}`,

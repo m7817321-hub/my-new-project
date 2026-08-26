@@ -13,7 +13,8 @@
     "test:identity": "node server/test_identity_dedup.js",
     "test:market-model": "node server/test_market_research_model.js",
     "test:workflow": "node server/test_workflow_lineage.js",
-    "test:margin": "node server/test_margin_calculator_v2.js"
+    "test:margin": "node server/test_margin_calculator_v2.js",
+    "test:health": "node server/test_health_integrations.js"
   },
   "dependencies": {
     "better-sqlite3": "^11.8.1",

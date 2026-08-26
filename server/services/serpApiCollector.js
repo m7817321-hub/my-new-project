@@ -1,4 +1,5 @@
 const https = require('https');
+const { recordCollectorStatus } = require('./integrationHealth');
 
 /**
  * SerpApi Naver Shopping Search Connector (with Catalog Detection V2)
@@ -16,6 +17,7 @@ function fetchSerpApiNaverShopping(keyword) {
   const apiKey = process.env.SERPAPI_KEY;
 
   if (!apiKey) {
+    recordCollectorStatus('serpapi', 'UNKNOWN');
     return Promise.resolve({
       status: 'UNKNOWN',
       source: 'SerpApi Naver Search (https://serpapi.com/search.json?engine=naver)',
@@ -111,6 +113,7 @@ function fetchSerpApiNaverShopping(keyword) {
               };
             });
 
+            recordCollectorStatus('serpapi', 'LIVE_COLLECTED');
             resolve({
               status: 'LIVE_COLLECTED',
               source: `https://serpapi.com/search.json?engine=naver&query=${enc}`,
@@ -118,8 +121,10 @@ function fetchSerpApiNaverShopping(keyword) {
               top_products: topProducts
             });
           } else {
+            const errStatus = 'API_ERROR_' + res.statusCode;
+            recordCollectorStatus('serpapi', errStatus);
             resolve({
-              status: 'API_ERROR_' + res.statusCode,
+              status: errStatus,
               source: `https://serpapi.com/search.json?engine=naver&query=${enc}`,
               statusCode: res.statusCode,
               error: json.error || data,
@@ -127,6 +132,7 @@ function fetchSerpApiNaverShopping(keyword) {
             });
           }
         } catch (e) {
+          recordCollectorStatus('serpapi', 'PARSE_ERROR');
           resolve({
             status: 'PARSE_ERROR',
             source: `https://serpapi.com/search.json?engine=naver&query=${enc}`,
@@ -139,6 +145,7 @@ function fetchSerpApiNaverShopping(keyword) {
     });
 
     req.on('error', (err) => {
+      recordCollectorStatus('serpapi', 'NETWORK_ERROR');
       resolve({
         status: 'NETWORK_ERROR',
         source: `https://serpapi.com/search.json?engine=naver&query=${enc}`,

@@ -1,5 +1,6 @@
 const https = require('https');
 const crypto = require('crypto');
+const { recordCollectorStatus } = require('./integrationHealth');
 
 /**
  * 네이버 검색광고 RelKwdStat API 커넥터
@@ -22,6 +23,7 @@ function fetchNaverSearchAdVolume(rawKeyword) {
 
   // 인증 정보 부재 시 UNKNOWN 처리 (임의 생성 금지)
   if (!apiKey || !secretKey || !customerId) {
+    recordCollectorStatus('naver_searchad', 'UNKNOWN');
     return Promise.resolve({
       status: 'UNKNOWN',
       source: 'Naver SearchAd RelKwdStat API (https://api.searchad.naver.com/keywordstool)',
@@ -89,6 +91,7 @@ function fetchNaverSearchAdVolume(rawKeyword) {
               const mobileCount = parseVolume(target.monthlyMobileQcCnt);
               const totalCount = pcCount + mobileCount;
 
+              recordCollectorStatus('naver_searchad', 'LIVE_COLLECTED');
               resolve({
                 status: 'LIVE_COLLECTED',
                 source: `https://api.searchad.naver.com${fullPath}`,
@@ -99,6 +102,7 @@ function fetchNaverSearchAdVolume(rawKeyword) {
                 raw_item: target
               });
             } else {
+              recordCollectorStatus('naver_searchad', 'LIVE_COLLECTED');
               resolve({
                 status: 'NO_DATA',
                 source: `https://api.searchad.naver.com${fullPath}`,
@@ -110,8 +114,10 @@ function fetchNaverSearchAdVolume(rawKeyword) {
               });
             }
           } else {
+            const errStatus = `API_ERROR_${res.statusCode}`;
+            recordCollectorStatus('naver_searchad', errStatus);
             resolve({
-              status: `API_ERROR_${res.statusCode}`,
+              status: errStatus,
               source: `https://api.searchad.naver.com${fullPath}`,
               statusCode: res.statusCode,
               error: json.title || json.message || data,
@@ -122,6 +128,7 @@ function fetchNaverSearchAdVolume(rawKeyword) {
             });
           }
         } catch (e) {
+          recordCollectorStatus('naver_searchad', 'PARSE_ERROR');
           resolve({
             status: 'PARSE_ERROR',
             source: `https://api.searchad.naver.com${fullPath}`,
@@ -137,6 +144,7 @@ function fetchNaverSearchAdVolume(rawKeyword) {
     });
 
     req.on('error', (err) => {
+      recordCollectorStatus('naver_searchad', 'NETWORK_ERROR');
       resolve({
         status: 'NETWORK_ERROR',
         source: `https://api.searchad.naver.com${fullPath}`,

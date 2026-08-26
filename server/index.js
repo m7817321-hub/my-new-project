@@ -11,6 +11,7 @@ const { analyzeMarketData, fetchMoreMarketProducts } = require('./services/marke
 const { extractProductCandidates } = require('./services/candidateFinder');
 const { extractProductFeatures } = require('./services/supplierKeywordExtractor');
 const { trackTargetRank, trackAllActiveTargets, initDailyRankScheduler } = require('./services/rankTracker');
+const { getIntegrationHealth } = require('./services/integrationHealth');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -51,6 +52,17 @@ const SAMPLE_PRESETS = [
 // Health Check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', service: 'WOOJUNG SELLER Daily Sourcing Engine V4', timestamp: new Date().toISOString() });
+});
+
+// Integration & Environment Diagnostics Check
+app.get('/api/health/integrations', (req, res) => {
+  try {
+    const health = getIntegrationHealth();
+    res.json(health);
+  } catch (error) {
+    console.error('Integration health check error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
 });
 
 // ==========================================
