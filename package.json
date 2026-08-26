@@ -4,15 +4,16 @@
   "description": "WOOJUNG SELLER - 국내 판매 자동화 및 상품화 파이프라인 MVP",
   "main": "server/index.js",
   "scripts": {
+    "start": "node server/index.js",
     "start:server": "node server/index.js",
     "start:client": "npm --prefix client run dev",
     "dev": "concurrently -n \"SERVER,CLIENT\" -c \"blue,green\" \"npm run start:server\" \"npm run start:client\"",
-    "build": "npm --prefix client run build",
+    "postinstall": "npm --prefix client install",
+    "build": "npm --prefix client install && npm --prefix client run build",
     "test:identity": "node server/test_identity_dedup.js",
     "test:market-model": "node server/test_market_research_model.js",
     "test:workflow": "node server/test_workflow_lineage.js",
-    "test:margin": "node server/test_margin_calculator_v2.js",
-    "start": "node server/index.js"
+    "test:margin": "node server/test_margin_calculator_v2.js"
   },
   "dependencies": {
     "better-sqlite3": "^11.8.1",

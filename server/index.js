@@ -1,4 +1,6 @@
 require('dotenv').config();
+const path = require('path');
+const fs = require('fs');
 const express = require('express');
 const cors = require('cors');
 const { v4: uuidv4 } = require('uuid');
@@ -385,6 +387,7 @@ app.get('/api/workflow/candidates/:candidateId/listing-seed', (req, res) => {
     supply_shipping: supplier.supply_shipping !== undefined ? supplier.supply_shipping : 0, customer_shipping: 3000,
     market_fee_rate: 10.8, packaging_cost: 500,
     moq: supplier.moq || 1, currency: supplier.currency || 'KRW',
+    exchange_rate: supplier.exchange_rate || (supplier.currency === 'CNY' ? 195 : supplier.currency === 'USD' ? 1350 : 1),
     margin_simulation: supplier.margin_simulation || {}
   }});
 });
@@ -718,8 +721,29 @@ app.get('/api/rank-tracker/history/:targetId', (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`🚀 WOOJUNG SELLER Backend running on http://localhost:${PORT}`);
+// ==========================================
+// 🚀 Production Static File Serving & SPA Fallback
+// ==========================================
+const clientDistPath = path.join(__dirname, '../client/dist');
+if (fs.existsSync(clientDistPath)) {
+  app.use(express.static(clientDistPath));
+
+  // SPA fallback for all GET requests that are not /api/...
+  app.use((req, res, next) => {
+    if (req.method === 'GET' && !req.path.startsWith('/api')) {
+      return res.sendFile(path.join(clientDistPath, 'index.html'));
+    }
+    next();
+  });
+}
+
+// 404 handler for unmatched API requests
+app.use('/api', (req, res) => {
+  res.status(404).json({ success: false, error: 'API endpoint not found' });
+});
+
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 WOOJUNG SELLER running on port ${PORT} (0.0.0.0)`);
   // Initialize daily automated scheduler
   initDailyRankScheduler();
 });

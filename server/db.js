@@ -3,11 +3,15 @@ const path = require('path');
 const fs = require('fs');
 
 const dataDir = path.join(__dirname, 'data');
-if (!fs.existsSync(dataDir)) {
-  fs.mkdirSync(dataDir, { recursive: true });
+const dbPath = process.env.WOOJUNG_DB_PATH || path.join(dataDir, 'woojung.db');
+
+if (dbPath !== ':memory:') {
+  const dirToEnsure = path.dirname(dbPath);
+  if (!fs.existsSync(dirToEnsure)) {
+    fs.mkdirSync(dirToEnsure, { recursive: true });
+  }
 }
 
-const dbPath = process.env.WOOJUNG_DB_PATH || path.join(dataDir, 'woojung.db');
 const db = new Database(dbPath);
 const { getCanonicalProductIdentity } = require('./services/productIdentity');
 
@@ -107,6 +111,7 @@ db.exec(`
     supplier_url TEXT DEFAULT '',
     unit_cost INTEGER,
     currency TEXT DEFAULT 'KRW',
+    exchange_rate REAL DEFAULT 1,
     moq INTEGER DEFAULT 1,
     supply_shipping INTEGER DEFAULT 0,
     notes TEXT DEFAULT '',
@@ -164,6 +169,7 @@ try { db.exec(`ALTER TABLE product_candidates ADD COLUMN identity_type TEXT NOT 
 try { db.exec(`ALTER TABLE products ADD COLUMN candidate_id TEXT;`); } catch(e){}
 try { db.exec(`ALTER TABLE products ADD COLUMN supplier_item_id TEXT;`); } catch(e){}
 try { db.exec(`ALTER TABLE supplier_items ADD COLUMN workflow_status TEXT NOT NULL DEFAULT 'RESEARCHING';`); } catch(e){}
+try { db.exec(`ALTER TABLE supplier_items ADD COLUMN exchange_rate REAL DEFAULT 1;`); } catch(e){}
 try { db.exec(`ALTER TABLE keyword_rank_targets ADD COLUMN product_id TEXT;`); } catch(e){}
 try { db.exec(`ALTER TABLE keyword_rank_targets ADD COLUMN workflow_status TEXT NOT NULL DEFAULT 'ACTIVE';`); } catch(e){}
 try { db.exec(`ALTER TABLE keyword_rank_targets ADD COLUMN candidate_id TEXT;`); } catch(e){}
@@ -542,11 +548,11 @@ function saveSupplierItem(item) {
   const stmt = db.prepare(`
     INSERT INTO supplier_items (
       id, candidate_id, platform, product_title, supplier_name, supplier_url, unit_cost,
-      currency, moq, supply_shipping, notes, verification_status, workflow_status, margin_simulation,
+      currency, exchange_rate, moq, supply_shipping, notes, verification_status, workflow_status, margin_simulation,
       created_at, updated_at
     ) VALUES (
       @id, @candidate_id, @platform, @product_title, @supplier_name, @supplier_url, @unit_cost,
-      @currency, @moq, @supply_shipping, @notes, @verification_status, @workflow_status, @margin_simulation,
+      @currency, @exchange_rate, @moq, @supply_shipping, @notes, @verification_status, @workflow_status, @margin_simulation,
       @created_at, @updated_at
     )
     ON CONFLICT(id) DO UPDATE SET
@@ -556,6 +562,7 @@ function saveSupplierItem(item) {
       supplier_url = excluded.supplier_url,
       unit_cost = excluded.unit_cost,
       currency = excluded.currency,
+      exchange_rate = excluded.exchange_rate,
       moq = excluded.moq,
       supply_shipping = excluded.supply_shipping,
       notes = excluded.notes,
@@ -565,6 +572,10 @@ function saveSupplierItem(item) {
       updated_at = excluded.updated_at
   `);
 
+  const currency = item.currency || 'KRW';
+  const defaultRate = currency === 'CNY' ? 195 : currency === 'USD' ? 1350 : 1;
+  const exchangeRate = Number(item.exchange_rate) || defaultRate;
+
   const payload = {
     id: item.id,
     candidate_id: item.candidate_id,
@@ -573,7 +584,8 @@ function saveSupplierItem(item) {
     supplier_name: item.supplier_name || '',
     supplier_url: item.supplier_url || '',
     unit_cost: item.unit_cost !== null && item.unit_cost !== undefined && item.unit_cost !== '' ? Number(item.unit_cost) : null,
-    currency: item.currency || 'KRW',
+    currency,
+    exchange_rate: exchangeRate,
     moq: Number(item.moq) || 1,
     supply_shipping: Number(item.supply_shipping) || 0,
     notes: item.notes || '',

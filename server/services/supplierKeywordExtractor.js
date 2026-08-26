@@ -57,6 +57,10 @@ function buildDomemeSearchUrl(keyword) {
   return `https://domeme.domeggook.com/s/?keyword=${encodeURIComponent(keyword)}`;
 }
 
+function buildDomeggookSearchUrl(keyword) {
+  return `https://domeggook.com/ssl/search/?kw=${encodeURIComponent(keyword)}`;
+}
+
 function extractProductFeatures(title, keywordHint = '') {
   const cleanTitle = (title || '').replace(/[\[\]\(\)\{\}\-_,.\/\\\|]/g, ' ');
 
@@ -101,6 +105,7 @@ function extractProductFeatures(title, keywordHint = '') {
       keyword: enKeyword,
       type: 'ENGLISH',
       url_1688: build1688SearchUrl(enKeyword),
+      url_domeggook: buildDomeggookSearchUrl(enKeyword),
       url_domeme: buildDomemeSearchUrl(enKeyword)
     });
   }
@@ -114,6 +119,7 @@ function extractProductFeatures(title, keywordHint = '') {
       keyword: zhKeyword,
       type: 'CHINESE',
       url_1688: build1688SearchUrl(zhKeyword),
+      url_domeggook: buildDomeggookSearchUrl(zhKeyword),
       url_domeme: buildDomemeSearchUrl(zhKeyword)
     });
   }
@@ -126,6 +132,7 @@ function extractProductFeatures(title, keywordHint = '') {
       keyword: specKw,
       type: 'ENGLISH_SPEC',
       url_1688: build1688SearchUrl(specKw),
+      url_domeggook: buildDomeggookSearchUrl(specKw),
       url_domeme: buildDomemeSearchUrl(specKw)
     });
   } else if (detectedFeatures.length > 0) {
@@ -135,28 +142,31 @@ function extractProductFeatures(title, keywordHint = '') {
       keyword: featKw,
       type: 'ENGLISH_FEATURE',
       url_1688: build1688SearchUrl(featKw),
+      url_domeggook: buildDomeggookSearchUrl(featKw),
       url_domeme: buildDomemeSearchUrl(featKw)
     });
   }
 
-  // 키워드 4: 도매매/국내 B2B (예: 나일론 캠프캡 5패널 방수)
+  // 키워드 4: 도매매/도매꾹/국내 B2B (예: 나일론 캠프캡 5패널 방수)
   const krFeatures = detectedFeatures.slice(0, 2).join(' ');
   const krKeyword = `${detectedMaterials[0]?.kr || ''} ${matchedCat.key} ${krFeatures}`.trim();
   searchKeywords.push({
-    target: '도매매 (국내 도매)',
+    target: '도매꾹/도매매 (국내 도매)',
     keyword: krKeyword,
     type: 'KOREAN_B2B',
     url_1688: build1688SearchUrl(krKeyword),
+    url_domeggook: buildDomeggookSearchUrl(krKeyword),
     url_domeme: buildDomemeSearchUrl(krKeyword)
   });
 
-  // 키워드 5: 도매매 무지/도매 대량용
+  // 키워드 5: 도매꾹/도매매 무지/도매 대량용
   const wholesaleKw = `무지 ${matchedCat.key} 도매`;
   searchKeywords.push({
-    target: '도매매 (무지 도매)',
+    target: '도매꾹/도매매 (대량 도매)',
     keyword: wholesaleKw,
     type: 'KOREAN_WHOLESALE',
     url_1688: build1688SearchUrl(wholesaleKw),
+    url_domeggook: buildDomeggookSearchUrl(wholesaleKw),
     url_domeme: buildDomemeSearchUrl(wholesaleKw)
   });
 
@@ -172,5 +182,6 @@ function extractProductFeatures(title, keywordHint = '') {
 module.exports = {
   extractProductFeatures,
   build1688SearchUrl,
+  buildDomeggookSearchUrl,
   buildDomemeSearchUrl
 };
