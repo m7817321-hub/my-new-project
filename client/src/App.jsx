@@ -13,13 +13,28 @@ const INITIAL_FORM = {
   original_name: '',
   cost_price: '',
   selling_price: '',
+  currency: 'KRW',
+  exchange_rate: 1,
+  moq: 1,
+  quantity: 1,
   supplier: '',
   product_url: '',
   image_url: '',
   supply_shipping: 3000,
   customer_shipping: 3000,
   market_fee_rate: 10.8,
-  packaging_cost: 500
+  payment_fee_rate: 0,
+  packaging_cost: 500,
+  ad_cost: 0,
+  discount_cost: 0,
+  china_local_cost: 0,
+  international_shipping: 0,
+  tariff_tax: 0,
+  batch_forwarding_fee: 0,
+  return_exchange_cost: 0,
+  defect_cost: 0,
+  extra_cost: 0,
+  target_margin_rate: 25
 };
 
 export default function App() {
@@ -227,7 +242,10 @@ export default function App() {
       const res = await fetch(`/api/workflow/candidates/${candidateId}/listing-seed`);
       const json = await res.json();
       if (!json.success) return showToast(json.error || 'Listing 연결 실패', 'error');
-      setFormData(json.data);
+      setFormData(prev => ({
+        ...INITIAL_FORM,
+        ...json.data
+      }));
       navigateTo('listing', { candidateId });
       showToast('선택된 공급처 기준으로 Listing Studio로 이동했습니다.', 'success');
     } catch (err) { showToast('Listing 연결 서버 통신 실패', 'error'); }

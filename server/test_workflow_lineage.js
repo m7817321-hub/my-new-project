@@ -14,8 +14,31 @@ db.updateSupplierWorkflowStatus(supplier1.id, 'SELECTED');
 assert.equal(db.getSupplierItemsByCandidateId(candidate.id).filter(x => x.workflow_status === 'SELECTED').length, 1);
 
 const product = db.saveProduct({ id:'product-1', candidate_id:candidate.id, supplier_item_id:supplier1.id, original_name:'상품', cost_price:10000, selling_price:20000, supplier:'1688', product_url:'https://shop.example.com/p', image_url:'', supply_shipping:0, customer_shipping:0, market_fee_rate:10.8, margin_amount:0, margin_rate:0, generated_title:'상품', keywords:[], key_benefits:[], detail_structure:[], detail_copy:'', status:'READY', created_at:now, updated_at:now });
-const target = db.saveRankTarget({ id:'rank-1', product_id:product.id, product_name:product.original_name, product_url:product.product_url, nv_mid:'', mall_name:'몰', keyword:'k', target_rank:10, active:1, workflow_status:'ACTIVE', created_at:now });
+const target = db.saveRankTarget({ id:'rank-1', product_id:product.id, candidate_id:candidate.id, product_name:product.original_name, product_url:product.product_url, nv_mid:'', mall_name:'몰', keyword:'k', target_rank:10, active:1, workflow_status:'ACTIVE', created_at:now });
 assert.equal(product.candidate_id, candidate.id);
 assert.equal(db.getSupplierItemById(supplier1.id).candidate_id, candidate.id);
 assert.equal(target.product_id, product.id);
+assert.equal(target.candidate_id, candidate.id);
+
+// Test reverse lookups
+const products = db.getProductsByCandidateId(candidate.id);
+assert.equal(products.length, 1);
+assert.equal(products[0].id, product.id);
+
+const targets = db.getRankTargetsByProductId(product.id);
+assert.equal(targets.length, 1);
+assert.equal(targets[0].id, target.id);
+
+// Test full lineage
+const lineage = db.getWorkflowLineage(candidate.id);
+assert.ok(lineage);
+assert.equal(lineage.candidate.id, candidate.id);
+assert.equal(lineage.suppliers.length, 2);
+assert.equal(lineage.selected_supplier.id, supplier1.id);
+assert.equal(lineage.products.length, 1);
+assert.equal(lineage.products[0].id, product.id);
+assert.equal(lineage.rank_targets.length, 1);
+assert.equal(lineage.rank_targets[0].id, target.id);
+assert.equal(lineage.workflow_summary.candidate_status, 'INTERESTED');
+
 console.log('Workflow lineage tests passed.');

@@ -120,6 +120,7 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS keyword_rank_targets (
     id TEXT PRIMARY KEY,
     product_id TEXT,
+    candidate_id TEXT,
     product_name TEXT NOT NULL,
     product_url TEXT DEFAULT '',
     nv_mid TEXT DEFAULT '',
@@ -165,6 +166,7 @@ try { db.exec(`ALTER TABLE products ADD COLUMN supplier_item_id TEXT;`); } catch
 try { db.exec(`ALTER TABLE supplier_items ADD COLUMN workflow_status TEXT NOT NULL DEFAULT 'RESEARCHING';`); } catch(e){}
 try { db.exec(`ALTER TABLE keyword_rank_targets ADD COLUMN product_id TEXT;`); } catch(e){}
 try { db.exec(`ALTER TABLE keyword_rank_targets ADD COLUMN workflow_status TEXT NOT NULL DEFAULT 'ACTIVE';`); } catch(e){}
+try { db.exec(`ALTER TABLE keyword_rank_targets ADD COLUMN candidate_id TEXT;`); } catch(e){}
 db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_product_candidates_canonical_identity
   ON product_candidates(canonical_identity) WHERE canonical_identity IS NOT NULL;`);
 
@@ -633,12 +635,13 @@ function updateSupplierWorkflowStatus(id, status) {
 function saveRankTarget(target) {
   const stmt = db.prepare(`
     INSERT INTO keyword_rank_targets (
-      id, product_id, product_name, product_url, nv_mid, mall_name, keyword, target_rank, active, workflow_status, created_at
+      id, product_id, candidate_id, product_name, product_url, nv_mid, mall_name, keyword, target_rank, active, workflow_status, created_at
     ) VALUES (
-      @id, @product_id, @product_name, @product_url, @nv_mid, @mall_name, @keyword, @target_rank, @active, @workflow_status, @created_at
+      @id, @product_id, @candidate_id, @product_name, @product_url, @nv_mid, @mall_name, @keyword, @target_rank, @active, @workflow_status, @created_at
     )
     ON CONFLICT(id) DO UPDATE SET
       product_id = excluded.product_id,
+      candidate_id = excluded.candidate_id,
       product_name = excluded.product_name,
       product_url = excluded.product_url,
       nv_mid = excluded.nv_mid,
@@ -651,6 +654,7 @@ function saveRankTarget(target) {
   const payload = {
     id: target.id,
     product_id: target.product_id || null,
+    candidate_id: target.candidate_id || null,
     product_name: target.product_name,
     product_url: target.product_url || '',
     nv_mid: target.nv_mid || '',
@@ -795,6 +799,79 @@ function getRankTargetsWithLatestRank() {
   });
 }
 
+// --- Workflow Lineage Helper Functions ---
+function getProductsByCandidateId(candidateId) {
+  const stmt = db.prepare(`SELECT * FROM products WHERE candidate_id = ? ORDER BY datetime(created_at) DESC`);
+  const rows = stmt.all(candidateId);
+  return rows.map(row => ({
+    ...row,
+    keywords: JSON.parse(row.keywords || '[]'),
+    key_benefits: JSON.parse(row.key_benefits || '[]'),
+    detail_structure: JSON.parse(row.detail_structure || '[]'),
+  }));
+}
+
+function getRankTargetsByProductId(productId) {
+  const stmt = db.prepare(`SELECT * FROM keyword_rank_targets WHERE product_id = ? ORDER BY datetime(created_at) DESC`);
+  return stmt.all(productId);
+}
+
+function getWorkflowLineage(candidateId) {
+  const candidate = getCandidateById(candidateId);
+  if (!candidate) return null;
+
+  const suppliers = getSupplierItemsByCandidateId(candidateId);
+  const products = getProductsByCandidateId(candidateId);
+
+  // Collect rank targets across all products linked to this candidate
+  const rankTargets = [];
+  const seenTargetIds = new Set();
+  for (const product of products) {
+    const targets = getRankTargetsByProductId(product.id);
+    for (const t of targets) {
+      if (!seenTargetIds.has(t.id)) {
+        seenTargetIds.add(t.id);
+        rankTargets.push(t);
+      }
+    }
+  }
+
+  // Also include rank targets directly linked via candidate_id (future-proof)
+  const directTargets = db.prepare(
+    `SELECT * FROM keyword_rank_targets WHERE candidate_id = ? ORDER BY datetime(created_at) DESC`
+  ).all(candidateId);
+  for (const t of directTargets) {
+    if (!seenTargetIds.has(t.id)) {
+      seenTargetIds.add(t.id);
+      rankTargets.push(t);
+    }
+  }
+
+  // Build workflow status summary
+  const selectedSupplier = suppliers.find(s => s.workflow_status === 'SELECTED') || null;
+  const activeProduct = products.find(p => ['READY', 'PUBLISHED'].includes(p.status)) || products[0] || null;
+
+  return {
+    candidate,
+    suppliers,
+    selected_supplier: selectedSupplier,
+    products,
+    active_product: activeProduct,
+    rank_targets: rankTargets,
+    // Include margin_simulation from selected supplier (reuse existing data)
+    margin_simulation: selectedSupplier?.margin_simulation || {},
+    workflow_summary: {
+      candidate_status: candidate.status,
+      supplier_count: suppliers.length,
+      selected_supplier_id: selectedSupplier?.id || null,
+      product_count: products.length,
+      active_product_id: activeProduct?.id || null,
+      active_product_status: activeProduct?.status || null,
+      rank_target_count: rankTargets.length
+    }
+  };
+}
+
 module.exports = {
   db,
   getAllProducts,
@@ -824,5 +901,9 @@ module.exports = {
   deleteRankTarget,
   saveRankHistory,
   getRankHistoryByTargetId,
-  getRankTargetsWithLatestRank
+  getRankTargetsWithLatestRank,
+  // Workflow Lineage exports
+  getProductsByCandidateId,
+  getRankTargetsByProductId,
+  getWorkflowLineage
 };

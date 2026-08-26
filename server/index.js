@@ -308,13 +308,16 @@ app.post('/api/supplier/item', (req, res) => {
     const sellingPrice = Number(itemData.selling_price) || 0;
 
     let marginSim = {};
-    if (unitCost !== null && unitCost > 0 && sellingPrice > 0) {
-      const supplyShipping = Number(itemData.supply_shipping) || (itemData.platform === '1688' ? 6000 : 3000);
+    if (unitCost !== null && unitCost >= 0 && sellingPrice > 0) {
+      const supplyShipping = Number(itemData.supply_shipping) !== undefined && itemData.supply_shipping !== ''
+        ? Number(itemData.supply_shipping)
+        : (itemData.platform === '1688' ? 6000 : 3000);
       const customerShipping = Number(itemData.customer_shipping) || 3000;
       const packagingCost = Number(itemData.packaging_cost) || 500;
       const marketFeeRate = Number(itemData.market_fee_rate) || 10.8;
 
       marginSim = calculateMargin({
+        ...itemData,
         cost_price: unitCost,
         selling_price: sellingPrice,
         supply_shipping: supplyShipping,
@@ -323,11 +326,12 @@ app.post('/api/supplier/item', (req, res) => {
         market_fee_rate: marketFeeRate
       });
     } else {
-      marginSim = {
-        cost_status: 'UNKNOWN',
-        margin_amount: null,
-        margin_rate: null
-      };
+      marginSim = calculateMargin({
+        ...itemData,
+        cost_price: unitCost,
+        selling_price: sellingPrice,
+        unknown_handling: 'strict'
+      });
     }
 
     itemData.unit_cost = unitCost;
@@ -337,6 +341,17 @@ app.post('/api/supplier/item', (req, res) => {
     res.json({ success: true, data: saved });
   } catch (error) {
     console.error('Save supplier item error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Standalone Margin Calculation Endpoint
+app.post('/api/margin/calculate', (req, res) => {
+  try {
+    const result = calculateMargin(req.body);
+    res.json({ success: true, data: result });
+  } catch (error) {
+    console.error('Margin calculation error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -364,12 +379,26 @@ app.get('/api/workflow/candidates/:candidateId/listing-seed', (req, res) => {
   if (!supplier) return res.status(409).json({ success: false, error: 'Listing으로 진행하려면 SELECTED 공급처가 필요합니다.' });
   res.json({ success: true, data: {
     candidate_id: candidate.id, supplier_item_id: supplier.id,
-    original_name: candidate.title, cost_price: supplier.unit_cost || 0,
+    original_name: candidate.title, cost_price: supplier.unit_cost !== null ? supplier.unit_cost : 0,
     selling_price: candidate.price || 25000, supplier: supplier.supplier_name || supplier.platform,
     product_url: candidate.product_url, image_url: candidate.image_url,
-    supply_shipping: supplier.supply_shipping || 0, customer_shipping: 3000,
-    market_fee_rate: 10.8, packaging_cost: 500
+    supply_shipping: supplier.supply_shipping !== undefined ? supplier.supply_shipping : 0, customer_shipping: 3000,
+    market_fee_rate: 10.8, packaging_cost: 500,
+    moq: supplier.moq || 1, currency: supplier.currency || 'KRW',
+    margin_simulation: supplier.margin_simulation || {}
   }});
+});
+
+// Workflow Lineage: full canonical lineage for a candidate
+app.get('/api/workflow/candidates/:candidateId/lineage', (req, res) => {
+  try {
+    const lineage = db.getWorkflowLineage(req.params.candidateId);
+    if (!lineage) return res.status(404).json({ success: false, error: 'candidate를 찾을 수 없습니다.' });
+    res.json({ success: true, data: lineage });
+  } catch (error) {
+    console.error('Workflow lineage error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
 });
 
 // 10. Delete Supplier Item
@@ -485,7 +514,7 @@ app.post('/api/products', (req, res) => {
     }
 
     const saved = db.saveProduct(product);
-    res.json({ success: true, data: saved });
+    res.json({ success: true, data: saved, lineage: { candidate_id: saved.candidate_id || null, supplier_item_id: saved.supplier_item_id || null } });
   } catch (error) {
     console.error('Save product error:', error);
     res.status(500).json({ success: false, error: error.message });
@@ -594,6 +623,7 @@ app.post('/api/rank-tracker/targets', async (req, res) => {
       const targetObj = {
         id: targetId,
         product_id: product_id || null,
+        candidate_id: product?.candidate_id || null,
         product_name: (product?.generated_title || product?.original_name || product_name).trim(),
         product_url: (product?.product_url || product_url || '').trim(),
         nv_mid: (nv_mid || '').trim(),

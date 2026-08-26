@@ -31,7 +31,9 @@ export default function RankTrackerView() {
 
   // Register Modal State
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
+  const [savedProducts, setSavedProducts] = useState([]);
   const [regForm, setRegForm] = useState({
+    product_id: '',
     product_name: '',
     product_url: '',
     nv_mid: '',
@@ -50,7 +52,20 @@ export default function RankTrackerView() {
 
   useEffect(() => {
     fetchTargets();
+    fetchSavedProducts();
   }, []);
+
+  const fetchSavedProducts = async () => {
+    try {
+      const res = await fetch('/api/products');
+      const json = await res.json();
+      if (json.success) {
+        setSavedProducts(json.data.filter(p => ['READY', 'PUBLISHED'].includes(p.status)));
+      }
+    } catch (err) {
+      console.error('Failed to fetch saved products:', err);
+    }
+  };
 
   const fetchTargets = async () => {
     setLoading(true);
@@ -88,6 +103,7 @@ export default function RankTrackerView() {
       if (json.success) {
         setIsRegisterModalOpen(false);
         setRegForm({
+          product_id: '',
           product_name: '',
           product_url: '',
           nv_mid: '',
@@ -406,8 +422,17 @@ export default function RankTrackerView() {
                           </h4>
                           <div className="flex items-center gap-2 text-[11px] text-slate-400">
                             <span className="font-semibold text-indigo-300 truncate max-w-[120px]">
-                              {target.mall_name}
+                                {target.mall_name}
                             </span>
+                            {target.candidate_id ? (
+                              <span className="px-1.5 py-0.5 bg-indigo-500/20 text-indigo-300 rounded text-[9px] font-bold">
+                                계보 연결됨
+                              </span>
+                            ) : (
+                              <span className="px-1.5 py-0.5 bg-slate-800 text-slate-400 rounded text-[9px] font-bold">
+                                독립 등록
+                              </span>
+                            )}
                             {target.product_url && (
                               <a
                                 href={target.product_url}
@@ -578,6 +603,40 @@ export default function RankTrackerView() {
             {/* Modal Form */}
             <form onSubmit={handleRegisterSubmit} className="p-6 space-y-4 overflow-y-auto">
               
+              {/* Product Selection */}
+              <div className="space-y-1.5 pb-2 border-b border-slate-800">
+                <label className="text-xs font-bold text-slate-300">
+                  저장된 상품에서 선택 (선택 시 정보 자동 입력)
+                </label>
+                <select
+                  value={regForm.product_id || ''}
+                  onChange={(e) => {
+                    const productId = e.target.value;
+                    if (!productId) {
+                      setRegForm(prev => ({ ...prev, product_id: '' }));
+                      return;
+                    }
+                    const prod = savedProducts.find(p => p.id === productId);
+                    if (prod) {
+                      setRegForm(prev => ({
+                        ...prev,
+                        product_id: prod.id,
+                        product_name: prod.generated_title || prod.original_name,
+                        product_url: prod.product_url || ''
+                      }));
+                    }
+                  }}
+                  className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500"
+                >
+                  <option value="">-- 직접 입력 --</option>
+                  {savedProducts.map(p => (
+                    <option key={p.id} value={p.id}>
+                      {p.generated_title || p.original_name} ({p.status})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               {/* Product Name */}
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-slate-300 flex items-center gap-1">

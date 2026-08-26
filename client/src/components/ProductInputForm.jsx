@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import { 
   Sparkles, 
   DollarSign, 
@@ -8,10 +8,9 @@ import {
   Tag, 
   ArrowRight, 
   TrendingUp, 
-  Percent, 
-  HelpCircle,
   FlaskConical
 } from 'lucide-react';
+import MarginCalculatorSection from './MarginCalculatorSection';
 
 export default function ProductInputForm({ 
   formData, 
@@ -21,29 +20,6 @@ export default function ProductInputForm({
   onLoadSample,
   samples
 }) {
-  // 실시간 마진 계산
-  const marginSummary = useMemo(() => {
-    const cost = Number(formData.cost_price) || 0;
-    const selling = Number(formData.selling_price) || 0;
-    const supplyShip = Number(formData.supply_shipping) || 0;
-    const custShip = Number(formData.customer_shipping) || 0;
-    const feeRate = Number(formData.market_fee_rate) || 10.8;
-    const pkgCost = Number(formData.packaging_cost) || 0;
-
-    const marketFee = Math.round(selling * (feeRate / 100));
-    const shipDiff = custShip - supplyShip;
-    const marginAmount = selling - cost - marketFee - pkgCost + shipDiff;
-    const totalRev = selling + (custShip > 0 ? custShip : 0);
-    const marginRate = totalRev > 0 ? Number(((marginAmount / totalRev) * 100).toFixed(1)) : 0;
-
-    return {
-      marginAmount,
-      marginRate,
-      marketFee,
-      isProfitable: marginAmount > 0
-    };
-  }, [formData]);
-
   const isValid = formData.original_name && formData.original_name.trim().length > 0;
 
   return (
@@ -56,10 +32,10 @@ export default function ProductInputForm({
         <div>
           <h2 className="text-base font-bold text-white flex items-center gap-2">
             <span className="flex h-2 w-2 rounded-full bg-indigo-400"></span>
-            1. 상품 기본정보 입력
+            1. 상품 기본정보 & Margin Calculator V2
           </h2>
           <p className="text-xs text-slate-400 mt-0.5">
-            도매처/공급처의 원천 상품 정보를 입력하면 AI가 판매용 등록 데이터로 가공합니다.
+            도매처 원천 정보 및 사입/판매 변동비를 입력하여 실질 원가와 마진을 정밀 계산합니다.
           </p>
         </div>
 
@@ -74,7 +50,7 @@ export default function ProductInputForm({
               key={sample.id}
               type="button"
               onClick={() => onLoadSample(sample)}
-              className="px-2.5 py-1 text-xs font-medium rounded-lg bg-indigo-950/60 hover:bg-indigo-900/80 text-indigo-300 border border-indigo-800/50 transition flex items-center gap-1 shadow-sm active:scale-95"
+              className="px-2.5 py-1 text-xs font-medium rounded-lg bg-indigo-950/60 hover:bg-indigo-900/80 text-indigo-300 border border-indigo-800/50 transition flex items-center gap-1 shadow-sm active:scale-95 cursor-pointer"
             >
               <span>🧢</span>
               {idx === 0 ? '캠프캡' : '볼캡'}
@@ -104,27 +80,31 @@ export default function ProductInputForm({
           />
         </div>
 
-        {/* 가격 & 마진 그리드 */}
+        {/* 가격 기본 입력 그리드 */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
           {/* 공급 원가 */}
           <div>
             <label className="block text-xs font-semibold text-slate-300 mb-1.5 flex items-center gap-1.5">
               <DollarSign className="w-3.5 h-3.5 text-emerald-400" />
-              공급 원가 (사입가)
+              공급 원가 (사입 단가)
             </label>
             <div className="relative">
               <input
                 type="number"
                 min="0"
-                step="100"
+                step="any"
                 name="cost_price"
-                value={formData.cost_price || ''}
+                value={formData.cost_price !== undefined ? formData.cost_price : ''}
                 onChange={onChange}
                 placeholder="6800"
-                className="w-full pl-7 pr-10 py-2 bg-slate-950/80 border border-slate-700/80 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition font-mono"
+                className="w-full pl-7 pr-12 py-2 bg-slate-950/80 border border-slate-700/80 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition font-mono"
               />
-              <span className="absolute left-2.5 top-2 text-xs text-slate-400">₩</span>
-              <span className="absolute right-3 top-2 text-xs text-slate-400">원</span>
+              <span className="absolute left-2.5 top-2 text-xs text-slate-400">
+                {(formData.currency || 'KRW') === 'CNY' ? '¥' : (formData.currency || 'KRW') === 'USD' ? '$' : '₩'}
+              </span>
+              <span className="absolute right-3 top-2 text-xs text-slate-400 font-mono">
+                {formData.currency || 'KRW'}
+              </span>
             </div>
           </div>
 
@@ -140,7 +120,7 @@ export default function ProductInputForm({
                 min="0"
                 step="100"
                 name="selling_price"
-                value={formData.selling_price || ''}
+                value={formData.selling_price !== undefined ? formData.selling_price : ''}
                 onChange={onChange}
                 placeholder="19800"
                 className="w-full pl-7 pr-10 py-2 bg-slate-950/80 border border-slate-700/80 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition font-mono font-medium text-emerald-300"
@@ -151,38 +131,15 @@ export default function ProductInputForm({
           </div>
         </div>
 
-        {/* 실시간 마진 계산 프리뷰 카드 */}
-        <div className="p-3.5 rounded-xl bg-slate-950/70 border border-slate-800/80 flex flex-wrap items-center justify-between gap-3 text-xs">
-          <div className="flex items-center gap-3">
-            <div>
-              <span className="text-slate-400 text-[11px] block">예상 순마진액</span>
-              <span className={`font-bold font-mono text-sm ${marginSummary.isProfitable ? 'text-emerald-400' : 'text-rose-400'}`}>
-                ₩{marginSummary.marginAmount.toLocaleString()}원
-              </span>
-            </div>
-            <div className="h-6 w-[1px] bg-slate-800" />
-            <div>
-              <span className="text-slate-400 text-[11px] block">마진율</span>
-              <span className={`font-bold font-mono text-sm ${marginSummary.marginRate >= 25 ? 'text-emerald-400' : marginSummary.marginRate > 0 ? 'text-amber-400' : 'text-rose-400'}`}>
-                {marginSummary.marginRate}%
-              </span>
-            </div>
-            <div className="h-6 w-[1px] bg-slate-800" />
-            <div>
-              <span className="text-slate-400 text-[11px] block">마켓 수수료(10.8%)</span>
-              <span className="text-slate-300 font-mono text-xs">
-                ₩{marginSummary.marketFee.toLocaleString()}원
-              </span>
-            </div>
-          </div>
-
-          <div className="text-[11px] px-2.5 py-1 rounded-md bg-slate-800/80 text-slate-300 font-medium border border-slate-700/50">
-            {marginSummary.marginRate >= 30 ? '🔥 고마진 타겟' : marginSummary.marginRate >= 15 ? '✅ 적정 마진' : '⚠️ 마진 재검토 권장'}
-          </div>
-        </div>
+        {/* Margin Calculator V2 Section */}
+        <MarginCalculatorSection
+          formData={formData}
+          onChange={onChange}
+          className="pt-1"
+        />
 
         {/* 공급처 & 링크 & 이미지 */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 pt-2">
           {/* 공급처 */}
           <div>
             <label className="block text-xs font-semibold text-slate-300 mb-1.5 flex items-center gap-1.5">

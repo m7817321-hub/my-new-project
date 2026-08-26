@@ -46,7 +46,8 @@ export default function SupplierSearchView({
     supplier_name: '',
     supplier_url: '',
     unit_cost: '',
-    currency: 'KRW',
+    currency: 'CNY',
+    exchange_rate: 195,
     moq: 1,
     supply_shipping: 6000,
     customer_shipping: 3000,
@@ -119,11 +120,19 @@ export default function SupplierSearchView({
     e.preventDefault();
 
     try {
+      const currency = supplierForm.currency || (supplierForm.platform === '1688' ? 'CNY' : 'KRW');
+      const exchangeRate = Number(supplierForm.exchange_rate) || (currency === 'CNY' ? 195 : currency === 'USD' ? 1350 : 1);
+      const rawCost = supplierForm.unit_cost !== '' && supplierForm.unit_cost !== null && supplierForm.unit_cost !== undefined
+        ? Number(supplierForm.unit_cost)
+        : null;
+
       const payload = {
         ...supplierForm,
         candidate_id: candidateId,
         selling_price: candidateData?.price || 0,
-        unit_cost: supplierForm.unit_cost !== '' ? Number(supplierForm.unit_cost) : null,
+        unit_cost: rawCost,
+        currency,
+        exchange_rate: exchangeRate,
         supply_shipping: Number(supplierForm.supply_shipping) || 0,
         customer_shipping: Number(supplierForm.customer_shipping) || 3000,
         packaging_cost: Number(supplierForm.packaging_cost) || 500,
@@ -145,7 +154,8 @@ export default function SupplierSearchView({
           supplier_name: '',
           supplier_url: '',
           unit_cost: '',
-          currency: 'KRW',
+          currency: 'CNY',
+          exchange_rate: 195,
           moq: 1,
           supply_shipping: 6000,
           customer_shipping: 3000,
@@ -504,15 +514,50 @@ export default function SupplierSearchView({
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-6 gap-3 text-xs">
               <div>
-                <label className="text-slate-400 block mb-1">공급원가 (₩ 원화 환산가)</label>
+                <label className="text-slate-400 block mb-1">통화</label>
+                <select
+                  value={supplierForm.currency || 'CNY'}
+                  onChange={(e) => {
+                    const c = e.target.value;
+                    setSupplierForm({
+                      ...supplierForm,
+                      currency: c,
+                      exchange_rate: c === 'CNY' ? 195 : c === 'USD' ? 1350 : 1
+                    });
+                  }}
+                  className="w-full px-2.5 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white font-semibold"
+                >
+                  <option value="CNY">CNY (¥)</option>
+                  <option value="KRW">KRW (₩)</option>
+                  <option value="USD">USD ($)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-slate-400 block mb-1">
+                  공급원가 ({supplierForm.currency === 'CNY' ? '¥ 위안' : supplierForm.currency === 'USD' ? '$ 달러' : '₩ 원화'})
+                </label>
                 <input
                   type="number"
+                  step="any"
                   value={supplierForm.unit_cost}
                   onChange={(e) => setSupplierForm({ ...supplierForm, unit_cost: e.target.value })}
-                  placeholder="예: 5800 (미확인 시 빈칸)"
+                  placeholder={supplierForm.currency === 'CNY' ? '예: 25' : '예: 5800'}
                   className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-emerald-400 font-mono font-bold"
+                />
+              </div>
+
+              <div>
+                <label className="text-slate-400 block mb-1">적용 환율</label>
+                <input
+                  type="number"
+                  step="0.1"
+                  disabled={supplierForm.currency === 'KRW'}
+                  value={supplierForm.currency === 'KRW' ? 1 : (supplierForm.exchange_rate || 195)}
+                  onChange={(e) => setSupplierForm({ ...supplierForm, exchange_rate: e.target.value })}
+                  className="w-full px-2.5 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white font-mono"
                 />
               </div>
 
@@ -520,19 +565,20 @@ export default function SupplierSearchView({
                 <label className="text-slate-400 block mb-1">MOQ (최소주문수량)</label>
                 <input
                   type="number"
+                  min="1"
                   value={supplierForm.moq}
                   onChange={(e) => setSupplierForm({ ...supplierForm, moq: e.target.value })}
-                  className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white font-mono"
+                  className="w-full px-2.5 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white font-mono"
                 />
               </div>
 
               <div>
-                <label className="text-slate-400 block mb-1">공급 배송비</label>
+                <label className="text-slate-400 block mb-1">공급 배송비 (KRW)</label>
                 <input
                   type="number"
                   value={supplierForm.supply_shipping}
                   onChange={(e) => setSupplierForm({ ...supplierForm, supply_shipping: e.target.value })}
-                  className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white font-mono"
+                  className="w-full px-2.5 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white font-mono"
                 />
               </div>
 
@@ -541,11 +587,11 @@ export default function SupplierSearchView({
                 <select
                   value={supplierForm.verification_status}
                   onChange={(e) => setSupplierForm({ ...supplierForm, verification_status: e.target.value })}
-                  className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white"
+                  className="w-full px-2.5 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white"
                 >
-                  <option value="UNVERIFIED">검토 대기 (UNVERIFIED)</option>
-                  <option value="VERIFIED">검증 완료 (VERIFIED)</option>
-                  <option value="REJECTED">탈락/부적합 (REJECTED)</option>
+                  <option value="UNVERIFIED">검토 대기</option>
+                  <option value="VERIFIED">검증 완료</option>
+                  <option value="REJECTED">탈락/부적합</option>
                 </select>
               </div>
             </div>
@@ -735,8 +781,8 @@ export default function SupplierSearchView({
                             <button
                               onClick={() => onTransferToListing(candidateId)}
                               disabled={sup.workflow_status !== 'SELECTED'}
-                              className="px-2.5 py-1 rounded bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-bold transition flex items-center gap-1 cursor-pointer"
-                              title="Listing Studio로 전달"
+                              className="px-2.5 py-1 rounded bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-bold transition flex items-center gap-1 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-slate-700"
+                              title={sup.workflow_status === 'SELECTED' ? "Listing Studio로 전달" : "SELECTED(선택) 상태인 공급처만 Listing으로 전달할 수 있습니다"}
                             >
                               <Send className="w-3 h-3" />
                               <span>상품화</span>
