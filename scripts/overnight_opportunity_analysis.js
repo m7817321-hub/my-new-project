@@ -36,7 +36,7 @@ function evaluateKeyword(report) {
   const topProducts = report.top_products || [];
 
   // 1. 데이터 충분성 체크
-  if (totalVol === null) {
+  if (!Number.isFinite(totalVol)) {
     return {
       verdict: 'INSUFFICIENT_DATA',
       reasons: ['SearchAd 검색량 데이터 누락 (UNKNOWN)'],
@@ -60,7 +60,7 @@ function evaluateKeyword(report) {
   }
 
   // 3. 가격 및 마진 판정 (Price)
-  if (medianPrice !== null) {
+  if (Number.isFinite(medianPrice)) {
     if (medianPrice < 12000) {
       flags.price = 'LOW_MARGIN';
       reasons.push(`중앙 판매가 ₩${medianPrice.toLocaleString()}: 저가 출혈 시장으로 마진 확보 불가`);
@@ -272,4 +272,22 @@ async function runOvernightAnalysis() {
   console.log(`✅ Overnight Report successfully written to: ${docPath}`);
 }
 
-runOvernightAnalysis();
+module.exports = { evaluateKeyword, runOvernightAnalysis };
+
+if (require.main === module) {
+  if (process.argv.includes('--saved')) {
+    if (!process.env.WOOJUNG_DB_PATH) throw new Error('WOOJUNG_DB_PATH is required for saved-data execution');
+    const repository = require('../server/db');
+    try {
+      const result = require('../server/services/autonomousSystem').createAutonomousSystem(repository).run();
+      console.log(JSON.stringify(result));
+    } catch (error) {
+      console.error('Overnight saved-data analysis failed');
+      process.exitCode = 1;
+    } finally {
+      repository.db.close();
+    }
+  } else {
+    runOvernightAnalysis().catch(() => { console.error('Overnight report failed'); process.exitCode = 1; });
+  }
+}
