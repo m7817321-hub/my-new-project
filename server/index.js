@@ -18,6 +18,8 @@ const PORT = process.env.PORT || 5000;
 
 app.use(cors());
 app.use(express.json());
+const autonomousSystem = require('./services/autonomousSystem').createAutonomousSystem(db);
+app.use('/api/autonomous', require('./autonomousRoutes').createAutonomousRouter(autonomousSystem));
 
 // Preset sample products for Listing Studio
 const SAMPLE_PRESETS = [
@@ -754,8 +756,10 @@ app.use('/api', (req, res) => {
   res.status(404).json({ success: false, error: 'API endpoint not found' });
 });
 
-app.listen(PORT, '0.0.0.0', () => {
+if (require.main === module) app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 WOOJUNG SELLER running on port ${PORT} (0.0.0.0)`);
   // Initialize daily automated scheduler
-  initDailyRankScheduler();
+  if (process.env.RANK_SCHEDULER_ENABLED !== 'false') initDailyRankScheduler();
 });
+
+module.exports = app;

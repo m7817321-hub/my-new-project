@@ -89,4 +89,4 @@ async function runE2E() {
   console.log('--- Workflow E2E Test Passed Successfully ---');
 }
 
-runE2E().catch(console.error);
+runE2E().catch(error => { console.error(error); process.exitCode = 1; });
